@@ -27,7 +27,7 @@ def parse_to_json(html=None, path=None, url=None) -> str:
 class Parser:
     _html_parser = None
 
-    def __init__(self, html_parser):
+    def __init__(self, html_parser: str = 'html.parser'):
         self._html_parser = html_parser
 
     def parse(self, html: str) -> dict:
