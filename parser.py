@@ -35,7 +35,7 @@ class Parser:
         rel_urls = {}
         soup = BeautifulSoup(html, self._html_parser)
         tags = self._get_top_level_tags(soup)
-        items = [self.parse_tag(t) for t in tags]
+        items = [self.parse_h_tag(t) for t in tags]
 
         result = {'items': items, 'rels': rels, 'rel-urls': rel_urls}
         return result
@@ -53,29 +53,25 @@ class Parser:
     def _get_top_level_tags(self, soup: BeautifulSoup) -> list:     # List[Tag]:
         return soup.find_all(self._has_h_class_on_top_level)
 
-    def parse_tag(self, tag: Tag) -> dict:
-        tag_type = [t for t in tag['class']]
+    def parse_h_tag(self, tag: Tag) -> dict:
+        tag_type = [t for t in tag['class'] if t.startswith('h-')]
         properties = {}
-        for child in tag.contents:
-            if isinstance(child, NavigableString):
-                properties['name'] = [str(child)]
-            elif isinstance(child, Tag):
-                items = self.parse_property(child)
-                for key in items.keys():
-                    properties[key] = items[key]
+        child_tags = [t for t in tag.contents if isinstance(t, Tag)]
+        for child in child_tags:
+            items = self.parse_tag(child)
+            properties = {**properties, **items}
         return {'type': tag_type, 'properties': properties}
 
-    def parse_property(self, tag: Tag) -> dict:
-        if not tag.has_attr('class'):
-            return {}
-        for c in tag['class']:
-            p = self.parse_p_property(tag, c[2:]) if c.startswith('p-') else {}
-            u = self.parse_u_property(tag) if c.startswith('u-') else {}
-            dt = self.parse_dt_property(tag) if c.startswith('dt-') else {}
-            e = self.parse_e_property(tag) if c.startswith('e-') else {}
-            h = self.parse_h_property(tag) if c.startswith('h-') else {}
-
-        d = {'value': h}
+    def parse_tag(self, tag: Tag) -> dict:
+        if tag.has_attr('class'):
+            for c in tag['class']:
+                # todo: rewrite
+                p = self.parse_p_property(tag, c[2:]) if c.startswith('p-') else {}
+                u = self.parse_u_property(tag) if c.startswith('u-') else {}
+                dt = self.parse_dt_property(tag) if c.startswith('dt-') else {}
+                e = self.parse_e_property(tag) if c.startswith('e-') else {}
+                h = self.parse_h_property(tag) if c.startswith('h-') else {}
+                d = {'value': h}
 
         return {**p, **u, **dt, **e, **d}
 
