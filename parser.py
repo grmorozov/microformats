@@ -54,40 +54,57 @@ class Parser:
         return soup.find_all(self._has_h_class_on_top_level)
 
     def parse_h_tag(self, tag: Tag) -> dict:
-        tag_type = [t for t in tag['class'] if t.startswith('h-')]
+        tag_types = [t for t in tag['class'] if t.startswith('h-')]
         properties = {}
         child_tags = [t for t in tag.contents if isinstance(t, Tag)]
         for child in child_tags:
             items = self.parse_tag(child)
             properties = {**properties, **items}
-        return {'type': tag_type, 'properties': properties}
+        return {'type': tag_types, 'properties': properties}
 
     def parse_tag(self, tag: Tag) -> dict:
+        properties = {}
         if tag.has_attr('class'):
             for c in tag['class']:
-                # todo: rewrite
-                p = self.parse_p_property(tag, c[2:]) if c.startswith('p-') else {}
-                u = self.parse_u_property(tag) if c.startswith('u-') else {}
-                dt = self.parse_dt_property(tag) if c.startswith('dt-') else {}
-                e = self.parse_e_property(tag) if c.startswith('e-') else {}
-                h = self.parse_h_property(tag) if c.startswith('h-') else {}
-                d = {'value': h}
+                class_name = c[2:]
+                if c.startswith('p-'):
+                    p = self.parse_p_property(tag, class_name=class_name)
+                    properties = {**properties, **p}
+                elif c.startswith('u-'):
+                    u = self.parse_u_property(tag)
+                    properties = {**properties, **u}
+                elif c.startswith('dt-'):
+                    dt = self.parse_dt_property(tag)
+                    properties = {**properties, **dt}
+                elif c.startswith('e-'):
+                    e = self.parse_e_property(tag)
+                    properties = {**properties, **e}
 
-        return {**p, **u, **dt, **e, **d}
+        if len(properties.items()) == 0:
+            # todo: add recursive search for h- classes
+            pass
 
-    def parse_p_property(self, tag: Tag, cl: str) -> dict:
+        return properties
+
+    def parse_p_property(self, tag: Tag, class_name: str) -> dict:
+        properties = {}
         # todo: value-class-pattern
-        if tag.name == 'abbr' and tag.has_attr('title'):
-            return {cl: tag['title']}
+
+        # todo: support nesting
+        if any([c for c in tag['class'] if c.startswith('h-')]):
+            properties[class_name] = [self.parse_h_tag(tag)]
+        elif tag.name == 'abbr' and tag.has_attr('title'):
+            properties[class_name] = tag['title']
         elif tag.name in ('data', 'input') and tag.has_attr('value'):
-            return {cl: tag['value']}
+            properties[class_name] = tag['value']
         elif tag.name in ('img', 'area') and tag.has_attr('alt'):
-            return {cl: tag['alt']}
+            properties[class_name] = tag['alt']
         else:
             # todo: replace any nested <img> elements with their alt attribute, if present;
             # otherwise their src attribute, if present, adding a space at the beginning and end,
             # resolving any relative URLs, and removing all leading/trailing whitespace.
-            return {cl: tag.get_text()}
+            properties[class_name] = tag.get_text()
+        return properties
 
     def parse_u_property(self, tag: Tag) -> dict:
         return {}
