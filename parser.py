@@ -1,6 +1,6 @@
 import json
 from bs4 import BeautifulSoup, Tag, NavigableString
-from typing import List, Dict, Optional
+# from typing import List, Dict, Optional
 
 
 def parse(html=None, path=None, url=None) -> dict:
@@ -58,53 +58,65 @@ class Parser:
         properties = {}
         child_tags = [t for t in tag.contents if isinstance(t, Tag)]
         for child in child_tags:
-            items = self.parse_tag(child)
-            properties = {**properties, **items}
+            self.parse_tag(child, properties)
         return {'type': tag_types, 'properties': properties}
 
-    def parse_tag(self, tag: Tag) -> dict:
-        properties = {}
+    def parse_tag(self, tag: Tag, properties: dict):
+        is_property = False
         if tag.has_attr('class'):
             if any([c for c in tag['class'] if c.startswith('p-')]):
                 self.parse_p_property(tag, properties)
+                is_property = True
             if any([c for c in tag['class'] if c.startswith('u-')]):
                 self.parse_u_property(tag, properties)
+                is_property = True
             if any([c for c in tag['class'] if c.startswith('dt-')]):
                 self.parse_dt_property(tag, properties)
+                is_property = True
             if any([c for c in tag['class'] if c.startswith('e-')]):
                 self.parse_e_property(tag, properties)
-        # todo: support nesting
-        # if one of special properties was found
-        if len(properties.items()) == 0:
-            # todo: add recursive search for h- classes
-            pass
-
-        return properties
+                is_property = True
+        if self._has_h_class(tag):
+            if not is_property:
+                children = [self.parse_h_tag(tag)]
+                if children:
+                    properties['children'] = children
+        else:
+            for child in tag.children:
+                if isinstance(child, Tag):
+                    self.parse_tag(child, properties)
 
     def parse_p_property(self, tag: Tag, properties: dict):
         class_names = [c[2:] for c in tag['class'] if c.startswith('p-')]
 
         if self.is_value_class(tag):
-            value = self.parse_value_class(tag)
-        elif any([c for c in tag['class'] if c.startswith('h-')]):
-            value = self.parse_h_tag(tag)
+            data = self.parse_value_class(tag)
+        elif self._has_h_class(tag):
+            # todo: test
+            data = self.parse_h_tag(tag)
+            names = data['properties'].get('name')
+            if names:
+                value = names[0]
+            else:
+                value = ''  # todo get value
+            data['value'] = value
         elif tag.name == 'abbr' and tag.has_attr('title'):
-            value = tag['title']
+            data = tag['title']
         elif tag.name in ('data', 'input') and tag.has_attr('value'):
-            value = tag['value']
+            data = tag['value']
         elif tag.name in ('img', 'area') and tag.has_attr('alt'):
-            value = tag['alt']
+            data = tag['alt']
         else:
             # todo: replace any nested <img> elements with their alt attribute, if present;
             # otherwise their src attribute, if present, adding a space at the beginning and end,
             # resolving any relative URLs, and removing all leading/trailing whitespace.
-            value = tag.text
-        if value:
+            data = tag.text
+        if data:
             for name in class_names:
                 if properties.get(name) is not None:
-                    properties[name].append(value)
+                    properties[name].append(data)
                 else:
-                    properties[name] = [value]
+                    properties[name] = [data]
 
     def parse_u_property(self, tag: Tag, properties: dict) -> dict:
         return {}
@@ -141,12 +153,9 @@ class Parser:
 test_html = '<html>' \
        '<title>test example</title>' \
        '<body>' \
-       '<div class="h-card"><span class="p-name p-fullname">Test name</span></div>' \
-            '<div class="h-card">Grey wolf</div>' \
-       '<div class="h-adr">London</div>' \
        '<div class="h-card">' \
        '    <a class="p-name u-url" href="http://blog.lizardwrangler.com/">Mitchell Baker</a>' \
-       '    (<a class="p-org h-card" href="http://mozilla.org/">Mozilla Foundation</a>)' \
+       '    (<a class="h-org h-card" href="http://mozilla.org/"><span class="p-name">Mozilla Foundation</span></a>)' \
        '</div>' \
        '</body>' \
        '</html>'
