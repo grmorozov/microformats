@@ -14,3 +14,10 @@ def test_get_implied_alt_from_img():
     parser = Parser()
     result_dict = parser.parse(html)
     assert result_dict['items'][0]['properties']['name'] == ['Jane Doe']
+
+
+def test_get_implied_title_from_inner_abbr():
+    html = '<div class="h-card"><abbr title="Jane Doe">JD</abbr></div>'
+    parser = Parser()
+    result_dict = parser.parse(html)
+    assert result_dict['items'][0]['properties']['name'] == ['Jane Doe']
