@@ -11,3 +11,4 @@ def test_p_property():
 
 def test_implied_name():
     run_example('./examples/microformats-v2/h-card/impliedname.json')
+

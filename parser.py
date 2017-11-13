@@ -201,8 +201,37 @@ class Parser:
                 else:
                     properties[name] = [data]
 
-    def parse_u_property(self, tag: Tag, properties: dict) -> dict:
-        return {}
+    def parse_u_property(self, tag: Tag, properties: dict):
+        class_names = [c[2:] for c in tag['class'] if c.startswith('u-')]
+        data = None
+        if tag.name in ('a', 'area') and tag.has_attr('href'):
+            data = tag['href']
+        elif tag.name in ('img', 'audio', 'video', 'source') and tag.has_attr('src'):
+            data = tag['src']
+        elif tag.name == 'video' and tag.has_attr('poster'):
+            data = tag['poster']
+        elif tag.name == 'object' and tag.has_attr('data'):
+            data = tag['data']
+        if data:
+            data = data # todo: return the normalized absolute URL of it, following the containing document's
+            # language's rules for resolving relative URLs (e.g. in HTML, use the current URL context as determined by
+            # the page, and first <base> element, if any).
+        elif self.is_value_class(tag):
+            data = self.parse_value_class(tag)
+        elif tag.name == 'abbr' and tag.has_attr('title'):
+            data = tag['title']
+        elif tag.name in ('data', 'input') and tag.has_attr('value'):
+            data = tag['value']
+        else:
+            data = tag.text.strip()  # todo: return the textContent of the element after removing all leading/trailing
+            # whitespace and nested <script> & <style> elements.
+
+        if data:
+            for name in class_names:
+                if properties.get(name) is not None:
+                    properties[name].append(data)
+                else:
+                    properties[name] = [data]
 
     def parse_dt_property(self, tag: Tag, properties: dict) -> dict:
         return {}
