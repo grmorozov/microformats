@@ -1,6 +1,6 @@
 import json
 from bs4 import BeautifulSoup, Tag, NavigableString
-# from typing import List, Dict, Optional
+from typing import List, Dict, Optional
 
 
 def parse(html=None, path=None, url=None) -> dict:
@@ -50,7 +50,7 @@ class Parser:
     def _has_h_class_on_top_level(self, tag):
         return self._has_h_class(tag) and self._parents_do_not_have_h_class(tag.parents)
 
-    def _get_top_level_tags(self, soup: BeautifulSoup) -> list:     # List[Tag]:
+    def _get_top_level_tags(self, soup: BeautifulSoup) -> list:  # List[Tag]:
         return soup.find_all(self._has_h_class_on_top_level)
 
     def parse_h_tag(self, tag: Tag) -> dict:
@@ -66,13 +66,16 @@ class Parser:
 
         if not properties.get('photo'):
             photo = self.get_implied_photo(tag)
+            # if there is a gotten photo value, return the normalized absolute URL of it,
+            # following the containing document's language's rules for resolving relative URLs
+            # (e.g. in HTML, use the current URL context as determined by the page, and first <base> element, if any).
             if photo:
-                properties['photo'] = [photo]
+                properties['photo'] = [photo]  # todo: resolve relative urls
 
         if not properties.get('url'):
             url = self.get_implied_url(tag)
             if url:
-                properties['url'] = [url]
+                properties['url'] = [url]  # todo: resolve relative urls
 
         return {'type': tag_types, 'properties': properties}
 
@@ -106,47 +109,65 @@ class Parser:
             return tag['alt']
         if tag.name == 'abbr' and tag.has_attr('title'):
             return tag['title']
-        images = [t for t in tag.findAll(name='img', recursive=False) if t.has_attr('alt')]
-        if images and len(images) == 1 and not self._has_h_class(images[0]) and images[0]['alt'] != '':
-            return images[0]['alt']
-        areas = [t for t in tag.findAll(name='area', recursive=False) if t.has_attr('alt')]
-        if areas and len(areas) == 1 and not self._has_h_class(areas[0]) and areas[0]['alt'] != '':
-            return areas[0]['alt']
-        abbrs = [t for t in tag.findAll(name='abbr', recursive=False) if t.has_attr('title')]
-        if abbrs and len(abbrs) == 1 and not self._has_h_class(abbrs[0]) and abbrs[0]['title'] != '':
-            return abbrs[0]['title']
-        # todo: test
-        children = tag.findChildren()
-        if len(children) == 1 and isinstance(children[0], Tag) and not self._has_h_class(children[0]):
-            child = tag.children[0]
-            images = [t for t in child.findAll(name='img', recursive=False) if t.has_attr('alt')]
-            if images and len(images) == 1 and not self._has_h_class(images[0]) and images[0]['alt'] != '':
-                return images[0]['alt']
-            areas = [t for t in child.findAll(name='area', recursive=False) if t.has_attr('alt')]
-            if areas and len(areas) == 1 and not self._has_h_class(areas[0]) and areas[0]['alt'] != '':
-                return areas[0]['alt']
-            abbrs = [t for t in child.findAll(name='abbr', recursive=False) if t.has_attr('title')]
-            if abbrs and len(abbrs) == 1 and not self._has_h_class(abbrs[0]) and abbrs[0]['title'] != '':
-                return abbrs[0]['title']
+        name = self.get_only_child_of_type(tag, 'img', 'alt') or \
+               self.get_only_child_of_type(tag, 'area', 'alt') or \
+               self.get_only_child_of_type(tag, 'abbr', 'title')
+        if name:
+            return name
 
+        child = self.get_only_child(tag)
+        if child:
+            name = self.get_only_child_of_type(child, 'img', 'alt') or \
+                   self.get_only_child_of_type(child, 'area', 'alt') or \
+                   self.get_only_child_of_type(child, 'abbr', 'title')
+            if name:
+                return name
         return tag.text.strip()
 
-    def get_implied_photo(self, tag: Tag) -> str:
+    def get_implied_photo(self, tag: Tag) -> Optional[str]:
         if tag.name == 'img' and tag.has_attr('src'):
             return tag['src']
         if tag.name == 'object' and tag.has_attr('data'):
             return tag['data']
-        # if .h-x>img[src]:only-of-type:not[.h-*] then use that img src for photo
+        photo = self.get_only_child_of_type(tag, 'img', 'src') or \
+                self.get_only_child_of_type(tag, 'object', 'data')
+        if photo:
+            return photo
+        child = self.get_only_child(tag)
+        if child:
+            photo = self.get_only_child_of_type(tag, 'img', 'src') or \
+                    self.get_only_child_of_type(tag, 'object', 'data')
+            if photo:
+                return photo
 
-        # if there is a gotten photo value, return the normalized absolute URL of it,
-        # following the containing document's language's rules for resolving relative URLs
-        # (e.g. in HTML, use the current URL context as determined by the page, and first <base> element, if any).
-        return ''
+        return None
 
-    def get_implied_url(self, tag: Tag) -> str:
+    def get_implied_url(self, tag: Tag) -> Optional[str]:
         if tag.name in ('a', 'area') and tag.has_attr('href'):
             return tag['href']
-        return ''
+        url = self.get_only_child_of_type(tag, 'a', 'href') or self.get_only_child_of_type(tag, 'area', 'href')
+        if url:
+            return url
+        child = self.get_only_child(tag)
+        if child:
+            url = self.get_only_child_of_type(child, 'a', 'href') or \
+                  self.get_only_child_of_type(child, 'area', 'href')
+            if url:
+                return url
+
+        return None
+
+    def get_only_child(self, tag: Tag) -> Optional[Tag]:
+        children = tag.findChildren()
+        if len(children) == 1 and isinstance(children[0], Tag) and not self._has_h_class(children[0]):
+            return children[0]
+        return None
+
+    def get_only_child_of_type(self, tag: Tag, type_name: str, attr_name: str) -> Optional[str]:
+        children = tag.findAll(name=type_name, recursive=False)
+        if len(children) == 1 and not self._has_h_class(children[0]) and children[0].has_attr(attr_name):
+            return children[0][attr_name]
+        return None
 
     def parse_p_property(self, tag: Tag, properties: dict):
         class_names = [c[2:] for c in tag['class'] if c.startswith('p-')]
@@ -213,14 +234,14 @@ class Parser:
 
 
 test_html = '<html>' \
-       '<title>test example</title>' \
-       '<body>' \
-       '<div class="h-card">' \
-       '    <a class="p-name u-url" href="http://blog.lizardwrangler.com/">Mitchell Baker</a>' \
-       '    (<a class="h-org h-card" href="http://mozilla.org/"><span class="p-name">Mozilla Foundation</span></a>)' \
-       '</div>' \
-       '</body>' \
-       '</html>'
+            '<title>test example</title>' \
+            '<body>' \
+            '<div class="h-card">' \
+            '    <a class="p-name u-url" href="http://blog.lizardwrangler.com/">Mitchell Baker</a>' \
+            '    (<a class="h-org h-card" href="http://mozilla.org/"><span class="p-name">Mozilla Foundation</span></a>)' \
+            '</div>' \
+            '</body>' \
+            '</html>'
 
 pp = Parser('html.parser')
 d = pp.parse(test_html)
