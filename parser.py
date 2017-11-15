@@ -1,6 +1,11 @@
 import json
 from bs4 import BeautifulSoup, Tag, NavigableString
 from typing import List, Dict, Optional
+from urllib.parse import urljoin
+
+
+#   todo: ignore <template> elements
+#   todo: add backward compatibility
 
 
 def parse(html=None, path=None, url=None) -> dict:
@@ -14,7 +19,8 @@ def parse(html=None, path=None, url=None) -> dict:
     elif url:
         raise NotImplementedError()
         # todo: crawl url
-        # return parse(html)
+        # todo: check response headers for base url
+        # return parse(html, url)
     else:
         # todo: check best practices
         raise ValueError()
@@ -30,12 +36,14 @@ class Parser:
     def __init__(self, html_parser: str = 'html.parser'):
         self._html_parser = html_parser
 
-    def parse(self, html: str) -> dict:
+    def parse(self, html: str, base_url: Optional[str] = None) -> dict:
         rels = {}
         rel_urls = {}
         soup = BeautifulSoup(html, self._html_parser)
+        base = soup.find(name='base')
+        base_url = base['href'] if base else base_url
         tags = self._get_top_level_tags(soup)
-        items = [self.parse_h_tag(t) for t in tags]
+        items = [self.parse_h_tag(t, base_url) for t in tags]
 
         result = {'items': items, 'rels': rels, 'rel-urls': rel_urls}
         return result
@@ -53,12 +61,23 @@ class Parser:
     def _get_top_level_tags(self, soup: BeautifulSoup) -> list:  # List[Tag]:
         return soup.find_all(self._has_h_class_on_top_level)
 
-    def parse_h_tag(self, tag: Tag) -> dict:
+    @staticmethod
+    def _resolve_relative_url(url: str, base_url: Optional[str]):
+        if not base_url:
+            return url
+        return urljoin(base_url, url)
+
+    def parse_h_tag(self, tag: Tag, base_url: Optional[str]) -> dict:
         tag_types = [t for t in tag['class'] if t.startswith('h-')]
         properties = {}
+        children_list = []
         child_tags = [t for t in tag.contents if isinstance(t, Tag)]
         for child in child_tags:
-            self.parse_tag(child, properties)
+            is_property = self.parse_tag(child, properties, base_url)
+            if not is_property and self._has_h_class(child):
+                children = self.parse_h_tag(child, base_url)
+                if children:
+                    children_list.append(children)
 
         # parsing for implied properties
         if not properties.get('name'):
@@ -66,27 +85,29 @@ class Parser:
 
         if not properties.get('photo'):
             photo = self.get_implied_photo(tag)
-            # if there is a gotten photo value, return the normalized absolute URL of it,
-            # following the containing document's language's rules for resolving relative URLs
-            # (e.g. in HTML, use the current URL context as determined by the page, and first <base> element, if any).
             if photo:
-                properties['photo'] = [photo]  # todo: resolve relative urls
+                photo = self._resolve_relative_url(photo, base_url)
+                properties['photo'] = [photo]
 
         if not properties.get('url'):
             url = self.get_implied_url(tag)
             if url:
-                properties['url'] = [url]  # todo: resolve relative urls
+                url = self._resolve_relative_url(url, base_url)
+                properties['url'] = [url]
 
-        return {'type': tag_types, 'properties': properties}
+        result = {'type': tag_types, 'properties': properties}
+        if any(children_list):
+            result['children'] = children_list
+        return result
 
-    def parse_tag(self, tag: Tag, properties: dict):
+    def parse_tag(self, tag: Tag, properties: dict, base_url: Optional[str]) -> bool:
         is_property = False
         if tag.has_attr('class'):
             if any([c for c in tag['class'] if c.startswith('p-')]):
-                self.parse_p_property(tag, properties)
+                self.parse_p_property(tag, properties, base_url)
                 is_property = True
             if any([c for c in tag['class'] if c.startswith('u-')]):
-                self.parse_u_property(tag, properties)
+                self.parse_u_property(tag, properties, base_url)
                 is_property = True
             if any([c for c in tag['class'] if c.startswith('dt-')]):
                 self.parse_dt_property(tag, properties)
@@ -94,15 +115,12 @@ class Parser:
             if any([c for c in tag['class'] if c.startswith('e-')]):
                 self.parse_e_property(tag, properties)
                 is_property = True
-        if self._has_h_class(tag):
-            if not is_property:
-                children = [self.parse_h_tag(tag)]
-                if children:
-                    properties['children'] = children
-        else:
+
+        if not self._has_h_class(tag):
             for child in tag.children:
                 if isinstance(child, Tag):
-                    self.parse_tag(child, properties)
+                    self.parse_tag(child, properties, base_url)
+        return is_property
 
     def get_implied_name(self, tag: Tag) -> str:
         if tag.name in ('img', 'area') and tag.has_attr('alt'):
@@ -135,8 +153,8 @@ class Parser:
             return photo
         child = self.get_only_child(tag)
         if child:
-            photo = self.get_only_child_of_type(tag, 'img', 'src') or \
-                    self.get_only_child_of_type(tag, 'object', 'data')
+            photo = self.get_only_child_of_type(child, 'img', 'src') or \
+                    self.get_only_child_of_type(child, 'object', 'data')
             if photo:
                 return photo
 
@@ -158,7 +176,7 @@ class Parser:
         return None
 
     def get_only_child(self, tag: Tag) -> Optional[Tag]:
-        children = tag.findChildren()
+        children = tag.findChildren(recursive=False)
         if len(children) == 1 and isinstance(children[0], Tag) and not self._has_h_class(children[0]):
             return children[0]
         return None
@@ -169,14 +187,14 @@ class Parser:
             return children[0][attr_name]
         return None
 
-    def parse_p_property(self, tag: Tag, properties: dict):
+    def parse_p_property(self, tag: Tag, properties: dict, base_url: Optional[str]):
         class_names = [c[2:] for c in tag['class'] if c.startswith('p-')]
 
         if self.is_value_class(tag):
             data = self.parse_value_class(tag)
         elif self._has_h_class(tag):
             # todo: test
-            data = self.parse_h_tag(tag)
+            data = self.parse_h_tag(tag, base_url)
             names = data['properties'].get('name')
             if names:
                 value = names[0]
@@ -193,7 +211,7 @@ class Parser:
             # todo: replace any nested <img> elements with their alt attribute, if present;
             # otherwise their src attribute, if present, adding a space at the beginning and end,
             # resolving any relative URLs, and removing all leading/trailing whitespace.
-            data = tag.text
+            data = tag.text.strip()
         if data:
             for name in class_names:
                 if properties.get(name) is not None:
@@ -201,7 +219,7 @@ class Parser:
                 else:
                     properties[name] = [data]
 
-    def parse_u_property(self, tag: Tag, properties: dict):
+    def parse_u_property(self, tag: Tag, properties: dict, base_url: Optional[str]):
         class_names = [c[2:] for c in tag['class'] if c.startswith('u-')]
         data = None
         if tag.name in ('a', 'area') and tag.has_attr('href'):
@@ -213,9 +231,7 @@ class Parser:
         elif tag.name == 'object' and tag.has_attr('data'):
             data = tag['data']
         if data:
-            data = data # todo: return the normalized absolute URL of it, following the containing document's
-            # language's rules for resolving relative URLs (e.g. in HTML, use the current URL context as determined by
-            # the page, and first <base> element, if any).
+            data = self._resolve_relative_url(data, base_url)
         elif self.is_value_class(tag):
             data = self.parse_value_class(tag)
         elif tag.name == 'abbr' and tag.has_attr('title'):
@@ -260,18 +276,3 @@ class Parser:
         if tag.name == 'abbr':
             return tag['title'] if tag.has_attr('title') else tag.text
         return tag.text
-
-
-test_html = '<html>' \
-            '<title>test example</title>' \
-            '<body>' \
-            '<div class="h-card">' \
-            '    <a class="p-name u-url" href="http://blog.lizardwrangler.com/">Mitchell Baker</a>' \
-            '    (<a class="h-org h-card" href="http://mozilla.org/"><span class="p-name">Mozilla Foundation</span></a>)' \
-            '</div>' \
-            '</body>' \
-            '</html>'
-
-pp = Parser('html.parser')
-d = pp.parse(test_html)
-print(d)

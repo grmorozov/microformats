@@ -30,4 +30,6 @@ def run_example(path_to_json: str):
         p = parse(doc)
         with open(path_to_json, 'r') as res:
             expected = json.loads(res.read())
+            print(expected)
+            print(p)
             assert expected == p, f'Test {path_to_json} failed'
