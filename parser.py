@@ -192,6 +192,8 @@ class Parser:
 
         if self.is_value_class(tag):
             data = self.parse_value_class(tag)
+        elif self.is_value_title_class(tag):
+            data = self.parse_value_title_class(tag)
         elif self._has_h_class(tag):
             # todo: test
             data = self.parse_h_tag(tag, base_url)
@@ -234,6 +236,8 @@ class Parser:
             data = self._resolve_relative_url(data, base_url)
         elif self.is_value_class(tag):
             data = self.parse_value_class(tag)
+        elif self.is_value_title_class(tag):
+            data = self.parse_value_title_class(tag)
         elif tag.name == 'abbr' and tag.has_attr('title'):
             data = tag['title']
         elif tag.name in ('data', 'input') and tag.has_attr('value'):
@@ -265,6 +269,14 @@ class Parser:
     @staticmethod
     def is_value_class(tag: Tag) -> bool:
         return any([child for child in tag.findChildren(attrs={'class': 'value'}, recursive=False)])
+
+    def is_value_title_class(self, tag: Tag) -> bool:
+        child = self.get_only_child(tag)
+        return child and child.name == 'span' and child.has_attr('class') and child['class'] == ['value-title']
+
+    def parse_value_title_class(self, tag) -> str:
+        child = self.get_only_child(tag)
+        return child['title']
 
     @staticmethod
     def parse_value_tag(tag: Tag) -> str:
