@@ -238,6 +238,14 @@ class Parser:
             data = self.parse_value_class(tag)
         elif self.is_value_title_class(tag):
             data = self.parse_value_title_class(tag)
+        elif self._has_h_class(tag):
+            data = self.parse_h_tag(tag, base_url)
+            urls = data['properties'].get('url')
+            if urls:
+                value = urls[0]
+            else:
+                value = ''  # todo get value
+            data['value'] = value
         elif tag.name == 'abbr' and tag.has_attr('title'):
             data = tag['title']
         elif tag.name in ('data', 'input') and tag.has_attr('value'):
