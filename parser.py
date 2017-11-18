@@ -7,6 +7,8 @@ from urllib.parse import urljoin
 #   todo: ignore <template> elements
 #   todo: add backward compatibility
 
+#   todo: add all tests from http://microformats.org/wiki/microformats2
+
 
 def parse(html=None, path=None, url=None) -> dict:
     if html:
@@ -213,8 +215,7 @@ class Parser:
             # todo: replace any nested <img> elements with their alt attribute, if present;
             # otherwise their src attribute, if present, adding a space at the beginning and end,
             # resolving any relative URLs, and removing all leading/trailing whitespace.
-            self.remove_nested_elements(tag, ['style', 'script'])
-            data = tag.text.strip()
+            data = self.get_text_content(tag)
         if data:
             for name in class_names:
                 if properties.get(name) is not None:
@@ -252,8 +253,7 @@ class Parser:
         elif tag.name in ('data', 'input') and tag.has_attr('value'):
             data = tag['value']
         else:
-            self.remove_nested_elements(tag, ['style', 'script'])
-            data = tag.text.strip()
+            data = self.get_text_content(tag)
 
         if data:
             for name in class_names:
@@ -269,14 +269,17 @@ class Parser:
         class_names = [c[2:] for c in tag['class'] if c.startswith('e-')]
         inner_html = tag.encode_contents().decode('utf-8')
         html = inner_html.strip()
-        self.remove_nested_elements(tag, ['style', 'script'])
-        value = tag.text
+        value = self.get_text_content(tag)
         data = {'value': value, 'html': html}
         for name in class_names:
             if properties.get(name) is not None:
                 properties[name].append(data)
             else:
                 properties[name] = [data]
+
+    def get_text_content(self, tag: Tag) -> str:
+        self.remove_nested_elements(tag, ['style', 'script'])
+        return tag.text.strip()
 
     @staticmethod
     def remove_nested_elements(tag: Tag, types: List[str]):
