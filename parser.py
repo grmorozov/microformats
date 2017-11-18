@@ -213,6 +213,7 @@ class Parser:
             # todo: replace any nested <img> elements with their alt attribute, if present;
             # otherwise their src attribute, if present, adding a space at the beginning and end,
             # resolving any relative URLs, and removing all leading/trailing whitespace.
+            self.remove_nested_elements(tag, ['style', 'script'])
             data = tag.text.strip()
         if data:
             for name in class_names:
@@ -251,8 +252,8 @@ class Parser:
         elif tag.name in ('data', 'input') and tag.has_attr('value'):
             data = tag['value']
         else:
-            data = tag.text.strip()  # todo: return the textContent of the element after removing all leading/trailing
-            # whitespace and nested <script> & <style> elements.
+            self.remove_nested_elements(tag, ['style', 'script'])
+            data = tag.text.strip()
 
         if data:
             for name in class_names:
@@ -264,8 +265,23 @@ class Parser:
     def parse_dt_property(self, tag: Tag, properties: dict) -> dict:
         return {}
 
-    def parse_e_property(self, tag: Tag, properties: dict) -> dict:
-        return {}
+    def parse_e_property(self, tag: Tag, properties: dict):
+        class_names = [c[2:] for c in tag['class'] if c.startswith('e-')]
+        inner_html = tag.encode_contents().decode('utf-8')
+        html = inner_html.strip()
+        self.remove_nested_elements(tag, ['style', 'script'])
+        value = tag.text
+        data = {'value': value, 'html': html}
+        for name in class_names:
+            if properties.get(name) is not None:
+                properties[name].append(data)
+            else:
+                properties[name] = [data]
+
+    @staticmethod
+    def remove_nested_elements(tag: Tag, types: List[str]):
+        for t in types:
+            [e.decompose() for e in tag.findAll(t)]
 
     def parse_value_class(self, tag: Tag) -> str:
         value_tags = [child for child in tag.findChildren(attrs={'class': 'value'}, recursive=False)]

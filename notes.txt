@@ -1,0 +1,6 @@
+1. It's not said in documentation (http://microformats.org/wiki/microformats2-parsing) that we need to drop nested
+<script> elements from p-property text value, but there are tests for that (scriptstyletags.html).
+
+2. The same for e-property. Actually, it's not said about <style> too, just about replacing <img>.
+
+3. Replacing <img> nested tag doesn't happen in test urlincontent.html.
