@@ -80,9 +80,9 @@ def test_h_event_location_h_card():
     assert properties["url"] == ["http://indiewebcamp.com/2012"]
     assert properties["start"] == ["2012-06-30"]
     assert properties["end"] == ["2012-07-01"]
-    location = properties["location"]
+    location = properties["location"][0]
     assert location["value"] == "Geoloqi"
-    assert location["type"] == "h-card"
+    assert location["type"] == ["h-card"]
     assert location["properties"]["name"] == ["Geoloqi"]
     assert location["properties"]["org"] == ["Geoloqi"]
     assert location["properties"]["url"] == ["http://geoloqi.com/"]
