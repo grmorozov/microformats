@@ -262,8 +262,27 @@ class Parser:
                 else:
                     properties[name] = [data]
 
-    def parse_dt_property(self, tag: Tag, properties: dict) -> dict:
-        return {}
+    def parse_dt_property(self, tag: Tag, properties: dict):
+        class_names = [c[3:] for c in tag['class'] if c.startswith('dt-')]
+        if self.is_value_class(tag):
+            data = self.parse_value_class(tag)
+        elif self.is_value_title_class(tag):
+            data = self.parse_value_title_class(tag)
+        elif tag.name in ('time', 'ins', 'del') and tag.has_attr('datetime'):
+            data = tag['datetime']
+        elif tag.name == 'abbr' and tag.has_attr('title'):
+            data = tag['title']
+        elif tag.name in ('data', 'input') and tag.has_attr('value'):
+            data = tag['value']
+        else:
+            data = self.get_text_content(tag)
+
+        if data:
+            for name in class_names:
+                if properties.get(name) is not None:
+                    properties[name].append(data)
+                else:
+                    properties[name] = [data]
 
     def parse_e_property(self, tag: Tag, properties: dict):
         class_names = [c[2:] for c in tag['class'] if c.startswith('e-')]

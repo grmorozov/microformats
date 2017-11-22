@@ -159,3 +159,36 @@ def test_test_h_card_nested_org_h_card_3():
     assert children["properties"]["name"] == ["Mozilla Foundation"]
     assert children["properties"]["url"] == ["http://mozilla.org/"]
 #   todo: add other examples from http://microformats.org/wiki/microformats2
+
+
+def test_rel_parsing():
+    html = '<a rel="author" href="http://example.com/a">author a</a>' \
+           '<a rel="author" href="http://example.com/b">author b</a>' \
+           '<a rel="in-reply-to" href="http://example.com/1">post 1</a>' \
+           '<a rel="in-reply-to" href="http://example.com/2">post 2</a>' \
+           '<a rel="alternate home" ' \
+           '   href="http://example.com/fr" ' \
+           '   media="handheld" ' \
+           '   hreflang="fr">French mobile homepage</a>'
+    p = Parser()
+    result = p.parse(html)
+    assert result["rels"]
+    rels = result["rels"]
+    assert rels["author"] == ["http://example.com/a", "http://example.com/b"]
+    assert rels["in-reply-to"] == ["http://example.com/1", "http://example.com/2"]
+    assert rels["alternate"] == ["http://example.com/fr"]
+    assert rels["home"] == ["http://example.com/fr"]
+    assert result["rel-urls"]
+    rel_urls = result["rel-urls"]
+    assert rel_urls["http://example.com/a"]["rels"] == ["author"]
+    assert rel_urls["http://example.com/a"]["text"] == "author a"
+    assert rel_urls["http://example.com/b"]["rels"] == ["author"]
+    assert rel_urls["http://example.com/b"]["text"] == "author b"
+    assert rel_urls["http://example.com/1"]["rels"] == ["in-reply-to"]
+    assert rel_urls["http://example.com/1"]["text"] == "post 1"
+    assert rel_urls["http://example.com/2"]["rels"] == ["in-reply-to"]
+    assert rel_urls["http://example.com/2"]["text"] == "post 2"
+    assert rel_urls["http://example.com/fr"]["rels"] == ["alternate", "home"]
+    assert rel_urls["http://example.com/fr"]["text"] == "French mobile homepage"
+    assert rel_urls["http://example.com/fr"]["media"] == "handheld"
+    assert rel_urls["http://example.com/fr"]["hreflang"] == "fr"
