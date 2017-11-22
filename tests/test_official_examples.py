@@ -106,4 +106,56 @@ def test_h_card_org_h_card():
     assert properties["url"] == ["http://blog.lizardwrangler.com/"]
     assert properties["org"] == ["Mozilla Foundation"]
 
+
+def test_test_h_card_nested_org_h_card():
+    html = '<div class="h-card">' \
+           '<a class="p-name u-url" href="http://blog.lizardwrangler.com/">Mitchell Baker</a>' \
+           '(<a class="p-org h-card" href="http://mozilla.org/">Mozilla Foundation</a>)' \
+           '</div>'
+    p = Parser()
+    result = p.parse(html)
+    assert result["items"][0]["type"] == ["h-card"]
+    properties = result["items"][0]["properties"]
+    assert properties["name"] == ["Mitchell Baker"]
+    assert properties["url"] == ["http://blog.lizardwrangler.com/"]
+    org = properties["org"][0]
+    assert org["value"] == "Mozilla Foundation"
+    assert org["type"] == ["h-card"]
+    assert org["properties"]["name"] == ["Mozilla Foundation"]
+    assert org["properties"]["url"] == ["http://mozilla.org/"]
+
+
+def test_test_h_card_nested_org_h_card_2():
+    html = '<div class="h-card">' \
+           '<a class="p-name u-url" href="http://blog.lizardwrangler.com/">Mitchell Baker</a>' \
+           '(<a class="p-org h-card h-org" href="http://mozilla.org/">Mozilla Foundation</a>)' \
+           '</div>'
+    p = Parser()
+    result = p.parse(html)
+    assert result["items"][0]["type"] == ["h-card"]
+    properties = result["items"][0]["properties"]
+    assert properties["name"] == ["Mitchell Baker"]
+    assert properties["url"] == ["http://blog.lizardwrangler.com/"]
+    org = properties["org"][0]
+    assert org["value"] == "Mozilla Foundation"
+    assert org["type"] == ["h-card", "h-org"]
+    assert org["properties"]["name"] == ["Mozilla Foundation"]
+    assert org["properties"]["url"] == ["http://mozilla.org/"]
+
+
+def test_test_h_card_nested_org_h_card_3():
+    html = '<div class="h-card">' \
+           '<a class="p-name u-url" href="http://blog.lizardwrangler.com/">Mitchell Baker</a>' \
+           '(<a class="h-card h-org" href="http://mozilla.org/">Mozilla Foundation</a>)' \
+           '</div>'
+    p = Parser()
+    result = p.parse(html)
+    assert result["items"][0]["type"] == ["h-card"]
+    properties = result["items"][0]["properties"]
+    assert properties["name"] == ["Mitchell Baker"]
+    assert properties["url"] == ["http://blog.lizardwrangler.com/"]
+    children = result["items"][0]["children"][0]
+    assert children["type"] == ["h-card", "h-org"]
+    assert children["properties"]["name"] == ["Mozilla Foundation"]
+    assert children["properties"]["url"] == ["http://mozilla.org/"]
 #   todo: add other examples from http://microformats.org/wiki/microformats2
