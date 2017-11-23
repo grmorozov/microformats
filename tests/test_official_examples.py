@@ -188,7 +188,8 @@ def test_rel_parsing():
     assert rel_urls["http://example.com/1"]["text"] == "post 1"
     assert rel_urls["http://example.com/2"]["rels"] == ["in-reply-to"]
     assert rel_urls["http://example.com/2"]["text"] == "post 2"
-    assert rel_urls["http://example.com/fr"]["rels"] == ["alternate", "home"]
+    assert "alternate" in rel_urls["http://example.com/fr"]["rels"]
+    assert "home" in rel_urls["http://example.com/fr"]["rels"]
     assert rel_urls["http://example.com/fr"]["text"] == "French mobile homepage"
     assert rel_urls["http://example.com/fr"]["media"] == "handheld"
     assert rel_urls["http://example.com/fr"]["hreflang"] == "fr"

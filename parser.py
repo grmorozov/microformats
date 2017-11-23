@@ -39,13 +39,14 @@ class Parser:
         self._html_parser = html_parser
 
     def parse(self, html: str, base_url: Optional[str] = None) -> dict:
-        rels = {}
-        rel_urls = {}
         soup = BeautifulSoup(html, self._html_parser)
         base = soup.find(name='base')
         base_url = base['href'] if base else base_url
         tags = self._get_top_level_tags(soup)
         items = [self.parse_h_tag(t, base_url) for t in tags]
+
+        link_tags = soup.findAll('a') + soup.findAll('area') + soup.findAll('link')
+        rels, rel_urls = self.parse_hyperlinks(link_tags, base_url)
 
         result = {'items': items, 'rels': rels, 'rel-urls': rel_urls}
         return result
@@ -299,6 +300,36 @@ class Parser:
     def get_text_content(self, tag: Tag) -> str:
         self.remove_nested_elements(tag, ['style', 'script'])
         return tag.text.strip()
+
+    def parse_hyperlinks(self, tags: List[Tag], base_url: str) -> (dict, dict):
+        rels = {}
+        rel_urls = {}
+        for tag in tags:
+            if not tag.has_attr('rel') or not tag['rel']:
+                continue
+            if not tag.has_attr('href'):
+                continue
+            url = tag['href']
+            url = self._resolve_relative_url(url, base_url)
+            values = tag['rel']
+            for value in values:
+                if value not in rels.keys():
+                    rels[value] = []
+                if url not in rels[value]:
+                    rels[value].append(url)
+            if url not in rel_urls.keys():
+                rel_urls[url] = {}
+            value_attrs = ['hreflang', 'media', 'title', 'type']
+            for attr in value_attrs:
+                if tag.has_attr(attr) and attr not in rel_urls[url].keys():
+                    rel_urls[url][attr] = tag[attr]
+            text = self.get_text_content(tag)
+            if text and 'text' not in rel_urls[url].keys():
+                rel_urls[url]['text'] = text
+            if 'rels' not in rel_urls[url].keys():
+                rel_urls[url]['rels'] = []
+            rel_urls[url]['rels'] = list(set(values + rel_urls[url]['rels']))
+        return rels, rel_urls
 
     @staticmethod
     def remove_nested_elements(tag: Tag, types: List[str]):
