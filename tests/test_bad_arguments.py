@@ -1,25 +1,14 @@
-from parser import parse
-import pytest
+from parser import parse_html
 
 
 empty_dict = {'items': [], 'rels': {}, 'rel-urls': {}}
 
 
-def test_no_params():
-    with pytest.raises(ValueError):
-        parse()
+def test_parse_empty_html_gives_empty_dict():
+    parse_result = parse_html(html='')
+    assert parse_result == empty_dict
 
 
-def test_all_none_params():
-    with pytest.raises(ValueError):
-        parse(None, None, None)
-
-
-def test_empty_html():
-    with pytest.raises(ValueError):
-        parse(html='')
-
-
-def test_html_without_micro_formats():
-    d = parse(html='<html></html>')
-    assert d == empty_dict, 'Empty html string'
+def test_parse_html_without_micro_formats_gives_empty_dict():
+    parse_result = parse_html(html='<html></html>')
+    assert parse_result == empty_dict

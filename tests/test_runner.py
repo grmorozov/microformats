@@ -1,6 +1,6 @@
 from os import walk
 from os.path import join
-from parser import parse
+from parser import parse_from_file
 import json
 
 
@@ -15,21 +15,17 @@ def test_run_all_tests():
                 pairs[hf] = jf
 
     for key in pairs.keys():
-        with open(key, 'r') as html:
-            doc = html.read()
-            p = parse(doc)
-            with open(pairs[key], 'r') as res:
-                expected = json.loads(res.read())
-                assert expected == p, f'Test {key} failed'
+        parse_result = parse_from_file(key)
+        with open(pairs[key], 'r') as res:
+            expected = json.loads(res.read())
+            assert expected == parse_result, f'Test {key} failed'
 
 
 def run_example(path_to_json: str):
     path_to_html = path_to_json.replace('.json', '.html')
-    with open(path_to_html, 'r') as html:
-        doc = html.read()
-        p = parse(doc)
-        with open(path_to_json, 'r') as res:
-            expected = json.loads(res.read())
-            print(expected)
-            print(p)
-            assert expected == p, f'Test {path_to_json} failed'
+    parse_result = parse_from_file(path_to_html)
+    with open(path_to_json, 'r') as res:
+        expected = json.loads(res.read())
+        print(expected)
+        print(parse_result)
+        assert expected == parse_result, f'Test {path_to_json} failed'
