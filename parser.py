@@ -74,8 +74,8 @@ class Parser:
         children_list = []
         child_tags = [t for t in tag.contents if isinstance(t, Tag)]
         for child in child_tags:
-            is_property = self._parse_tag(child, properties, base_url)
-            if not is_property and self._has_h_class(child):
+            self._parse_tag(child, properties, base_url)
+            if not self._is_property_tag(child) and self._has_h_class(child):
                 children = self._parse_h_tag(child, base_url)
                 if children:
                     children_list.append(children)
@@ -101,27 +101,30 @@ class Parser:
             result['children'] = children_list
         return result
 
-    def _parse_tag(self, tag: Tag, properties: dict, base_url: Optional[str]) -> bool:
-        is_property = False
+    @staticmethod
+    def _is_property_tag(tag: Tag) -> bool:
+        return tag.has_attr('class') and \
+               any([c for c in tag['class'] if
+                    c.startswith('p-') or
+                    c.startswith('u-') or
+                    c.startswith('dt-') or
+                    c.startswith('e-')])
+
+    def _parse_tag(self, tag: Tag, properties: dict, base_url: Optional[str]):
         if tag.has_attr('class'):
             if any([c for c in tag['class'] if c.startswith('p-')]):
                 self._parse_p_property(tag, properties, base_url)
-                is_property = True
             if any([c for c in tag['class'] if c.startswith('u-')]):
                 self._parse_u_property(tag, properties, base_url)
-                is_property = True
             if any([c for c in tag['class'] if c.startswith('dt-')]):
                 self._parse_dt_property(tag, properties)
-                is_property = True
             if any([c for c in tag['class'] if c.startswith('e-')]):
                 self._parse_e_property(tag, properties)
-                is_property = True
 
         if not self._has_h_class(tag):
             for child in tag.children:
                 if isinstance(child, Tag):
                     self._parse_tag(child, properties, base_url)
-        return is_property
 
     def _get_implied_name(self, tag: Tag) -> str:
         if tag.name in ('img', 'area') and tag.has_attr('alt'):
