@@ -1,6 +1,6 @@
 import json
-from bs4 import BeautifulSoup, Tag, NavigableString
-from typing import List, Dict, Optional
+from bs4 import BeautifulSoup, Tag
+from typing import List, Optional
 from urllib.parse import urljoin
 
 
@@ -131,52 +131,43 @@ class Parser:
             return tag['alt']
         if tag.name == 'abbr' and tag.has_attr('title'):
             return tag['title']
-        name = self._get_only_child_of_type(tag, 'img', 'alt') or \
-               self._get_only_child_of_type(tag, 'area', 'alt') or \
-               self._get_only_child_of_type(tag, 'abbr', 'title')
-        if name:
-            return name
 
-        child = self._get_only_child(tag)
-        if child:
-            name = self._get_only_child_of_type(child, 'img', 'alt') or \
-                   self._get_only_child_of_type(child, 'area', 'alt') or \
-                   self._get_only_child_of_type(child, 'abbr', 'title')
-            if name:
-                return name
-        return tag.text.strip()
+        def _get_name_from_only_child(tag: Tag) -> Optional[str]:
+            return self._get_only_child_of_type(tag, 'img', 'alt') or \
+                   self._get_only_child_of_type(tag, 'area', 'alt') or \
+                   self._get_only_child_of_type(tag, 'abbr', 'title')
+
+        return self._get_implied_property_from_only_child(_get_name_from_only_child, tag) or tag.text.strip()
 
     def _get_implied_photo(self, tag: Tag) -> Optional[str]:
         if tag.name == 'img' and tag.has_attr('src'):
             return tag['src']
         if tag.name == 'object' and tag.has_attr('data'):
             return tag['data']
-        photo = self._get_only_child_of_type(tag, 'img', 'src') or \
-                self._get_only_child_of_type(tag, 'object', 'data')
-        if photo:
-            return photo
-        child = self._get_only_child(tag)
-        if child:
-            photo = self._get_only_child_of_type(child, 'img', 'src') or \
-                    self._get_only_child_of_type(child, 'object', 'data')
-            if photo:
-                return photo
 
-        return None
+        def _get_photo_from_only_child(tag: Tag) -> Optional[str]:
+            return self._get_only_child_of_type(tag, 'img', 'src') or \
+                   self._get_only_child_of_type(tag, 'object', 'data')
+
+        return self._get_implied_property_from_only_child(_get_photo_from_only_child, tag)
 
     def _get_implied_url(self, tag: Tag) -> Optional[str]:
         if tag.name in ('a', 'area') and tag.has_attr('href'):
             return tag['href']
-        url = self._get_only_child_of_type(tag, 'a', 'href') or self._get_only_child_of_type(tag, 'area', 'href')
-        if url:
-            return url
+
+        def _get_url_from_only_child(tag: Tag) -> Optional[str]:
+            return self._get_only_child_of_type(tag, 'a', 'href') or \
+                   self._get_only_child_of_type(tag, 'area', 'href')
+
+        return self._get_implied_property_from_only_child(_get_url_from_only_child, tag)
+
+    def _get_implied_property_from_only_child(self, func, tag: Tag) -> Optional[str]:
+        value = func(tag)
+        if value:
+            return value
         child = self._get_only_child(tag)
         if child:
-            url = self._get_only_child_of_type(child, 'a', 'href') or \
-                  self._get_only_child_of_type(child, 'area', 'href')
-            if url:
-                return url
-
+            return func(child)
         return None
 
     def _get_only_child(self, tag: Tag) -> Optional[Tag]:
