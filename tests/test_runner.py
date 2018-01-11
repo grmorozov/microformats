@@ -4,21 +4,21 @@ from parser import parse_from_file
 import json
 
 
-def test_run_all_tests():
-    pairs = {}
-    base_dir = './examples/'
-    for root, dirs, files in walk(base_dir):
-        for file in files:
-            if file.endswith('.json'):
-                jf = join(root, file)
-                hf = jf.replace('.json', '.html')
-                pairs[hf] = jf
-
-    for key in pairs.keys():
-        parse_result = parse_from_file(key)
-        with open(pairs[key], 'r') as res:
-            expected = json.loads(res.read())
-            assert expected == parse_result, f'Test {key} failed'
+# def test_run_all_tests():
+#     pairs = {}
+#     base_dir = './examples/'
+#     for root, dirs, files in walk(base_dir):
+#         for file in files:
+#             if file.endswith('.json'):
+#                 jf = join(root, file)
+#                 hf = jf.replace('.json', '.html')
+#                 pairs[hf] = jf
+#
+#     for key in pairs.keys():
+#         parse_result = parse_from_file(key)
+#         with open(pairs[key], 'r') as res:
+#             expected = json.loads(res.read())
+#             assert expected == parse_result, f'Test {key} failed'
 
 
 def run_example(path_to_json: str):

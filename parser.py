@@ -186,7 +186,7 @@ class Parser:
         class_names = [c[2:] for c in tag['class'] if c.startswith('p-')]
 
         if self._is_value_class(tag):
-            data = self._parse_value_class(tag)
+            data = self._parse_value_class(tag, False)
         elif self._is_value_title_class(tag):
             data = self._parse_value_title_class(tag)
         elif self._has_h_class(tag):
@@ -230,7 +230,7 @@ class Parser:
         if data:
             data = self._resolve_relative_url(data, base_url)
         elif self._is_value_class(tag):
-            data = self._parse_value_class(tag)
+            data = self._parse_value_class(tag, False)
         elif self._is_value_title_class(tag):
             data = self._parse_value_title_class(tag)
         elif self._has_h_class(tag):
@@ -258,7 +258,7 @@ class Parser:
     def _parse_dt_property(self, tag: Tag, properties: dict):
         class_names = [c[3:] for c in tag['class'] if c.startswith('dt-')]
         if self._is_value_class(tag):
-            data = self._parse_value_class(tag)
+            data = self._parse_value_class(tag, True)
         elif self._is_value_title_class(tag):
             data = self._parse_value_title_class(tag)
         elif tag.name in ('time', 'ins', 'del') and tag.has_attr('datetime'):
@@ -328,11 +328,21 @@ class Parser:
         for t in types:
             [e.decompose() for e in tag.findAll(t)]
 
-    def _parse_value_class(self, tag: Tag) -> str:
+    def _parse_value_class(self, tag: Tag, is_dt_tag: bool) -> str:
         value_tags = [child for child in tag.findChildren(attrs={'class': 'value'}, recursive=False)]
+        if len(value_tags) == 1:
+            if is_dt_tag:
+                return self._parse_date_time_value_tag(value_tags[0])
+            return self._parse_value_tag(value_tags[0])
         # todo: implement special rules for date-time parsing
-        values = [self._parse_value_tag(vt) for vt in value_tags]
-        result = ''.join(values)
+        if is_dt_tag:
+            result = ''
+            for vt in value_tags:
+                value = self._parse_date_time_value_tag(vt)
+                result += value
+        else:
+            values = [self._parse_value_tag(vt) for vt in value_tags]
+            result = ''.join(values)
         return result
 
     @staticmethod
@@ -357,3 +367,18 @@ class Parser:
         if tag.name == 'abbr':
             return tag['title'] if tag.has_attr('title') else tag.text
         return tag.text
+
+    def _parse_date_time_value_tag(self, tag: Tag) -> str:
+        if tag.name in ('img', 'area') and tag.has_attr('alt'):
+            return tag['alt']
+        if tag.name == 'data':
+            return self._get_attribute_or_text(tag, 'value')
+        if tag.name == 'abbr':
+            return self._get_attribute_or_text(tag, 'title')
+        if tag.name in ('del', 'ins', 'time'):
+            return self._get_attribute_or_text(tag, 'datetime')
+        return tag.text
+
+    @staticmethod
+    def _get_attribute_or_text(tag: Tag, attribute: str) -> str:
+        return tag[attribute] if tag.has_attr(attribute) else tag.text
