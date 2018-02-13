@@ -8,7 +8,7 @@ def test_has_h_class():
     tag = soup.find_all('a')[0]
     assert tag
     html_tag = HtmlTag(tag)
-    assert html_tag.has_h_class()
+    assert html_tag._has_h_class()
 
 
 def test_has_no_h_class():
@@ -17,4 +17,4 @@ def test_has_no_h_class():
     tag = soup.find_all('a')[0]
     assert tag
     html_tag = HtmlTag(tag)
-    assert not html_tag.has_h_class()
+    assert not html_tag._has_h_class()

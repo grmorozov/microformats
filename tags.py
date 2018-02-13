@@ -10,16 +10,8 @@ class HtmlTag:
     def __init__(self, tag: Tag):
         self.tag = tag
 
-    def has_h_class(self):
+    def _has_h_class(self):
         return self.tag.has_attr('class') and any([a for a in self.tag['class'] if a.startswith('h-')])
-
-    def is_property_tag(self) -> bool:
-        return self.tag.has_attr('class') and \
-               any([c for c in self.tag['class'] if
-                    c.startswith('p-') or
-                    c.startswith('u-') or
-                    c.startswith('dt-') or
-                    c.startswith('e-')])
 
     def _get_implied_name(self) -> str:
         if self.tag.name in ('img', 'area') and self.tag.has_attr('alt'):
@@ -36,13 +28,13 @@ class HtmlTag:
 
     def _get_only_child(self):
         children = self.tag.findChildren(recursive=False)
-        if len(children) == 1 and isinstance(children[0], Tag) and not HtmlTag(children[0]).has_h_class():
+        if len(children) == 1 and isinstance(children[0], Tag) and not HtmlTag(children[0])._has_h_class():
             return HtmlTag(children[0])
         return None
 
     def _get_only_child_of_type(self, type_name: str, attr_name: str) -> Optional[str]:
         children = self.tag.findAll(name=type_name, recursive=False)
-        if len(children) == 1 and not HtmlTag(children[0]).has_h_class() and children[0].has_attr(attr_name):
+        if len(children) == 1 and not HtmlTag(children[0])._has_h_class() and children[0].has_attr(attr_name):
             return children[0][attr_name]
         return None
 
@@ -119,7 +111,7 @@ class HtmlTag:
         child_tags = [HtmlTag(t) for t in self.tag.contents if isinstance(t, Tag)]
         for child in child_tags:
             child._parse_tag(properties, base_url)
-            if not child._is_property_tag() and child.has_h_class():
+            if not child._is_property_tag() and child._has_h_class():
                 children = child._parse_h_tag(base_url)
                 if children:
                     children_list.append(children)
@@ -156,7 +148,7 @@ class HtmlTag:
             if any([c for c in self.tag['class'] if c.startswith('e-')]):
                 self._parse_e_property(properties)
 
-        if not self.has_h_class():
+        if not self._has_h_class():
             for child in self.tag.children:
                 if isinstance(child, Tag):
                     HtmlTag(child)._parse_tag(properties, base_url)
@@ -168,7 +160,7 @@ class HtmlTag:
             data = self._parse_value_class()
         elif self._is_value_title_class():
             data = self._parse_value_title_class()
-        elif self.has_h_class():
+        elif self._has_h_class():
             data = self._parse_h_tag(base_url)
             names = data['properties'].get('name')
             if names:
@@ -211,7 +203,7 @@ class HtmlTag:
             data = self._parse_value_class()
         elif self._is_value_title_class():
             data = self._parse_value_title_class()
-        elif self.has_h_class():
+        elif self._has_h_class():
             data = self._parse_h_tag(base_url)
             urls = data['properties'].get('url')
             if urls:
