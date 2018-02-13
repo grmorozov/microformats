@@ -14,17 +14,16 @@ class HtmlTag:
         return self.tag.has_attr('class') and any([a for a in self.tag['class'] if a.startswith('h-')])
 
     def _get_implied_name(self) -> str:
-        if self.tag.name in ('img', 'area') and self.tag.has_attr('alt'):
-            return self.tag['alt']
-        if self.tag.name == 'abbr' and self.tag.has_attr('title'):
-            return self.tag['title']
 
         def _get_name_from_only_child(tag: HtmlTag) -> Optional[str]:
             return tag._get_only_child_of_type('img', 'alt') or \
                    tag._get_only_child_of_type('area', 'alt') or \
                    tag._get_only_child_of_type('abbr', 'title')
 
-        return self._get_implied_property_from_only_child(_get_name_from_only_child) or self.tag.text.strip()
+        return self._get_tag_attribute_value(['img', 'area'], 'alt') or \
+               self._get_tag_attribute_value(['abbr'], 'title') or \
+               self._get_implied_property_from_only_child(_get_name_from_only_child) or \
+               self.tag.text.strip()
 
     def _get_only_child(self):
         children = self.tag.findChildren(recursive=False)
@@ -55,13 +54,21 @@ class HtmlTag:
         return child and child.tag.name == 'span' and child.tag.has_attr('class') and child.tag['class'] == ['value-title']
 
     def _parse_value_tag(self) -> str:
-        if self.tag.name in ('img', 'area') and self.tag.has_attr('alt'):
-            return self.tag['alt']
-        if self.tag.name == 'data':
-            return self.tag['value'] if self.tag.has_attr('value') else self.tag.text
-        if self.tag.name == 'abbr':
-            return self.tag['title'] if self.tag.has_attr('title') else self.tag.text
-        return self.tag.text    # todo: check if tag.text is equal to innerText
+        return self._get_tag_attribute_value(['img', 'area'], 'alt') or \
+               self._get_tag_attribute_value_or_text(['data'], 'value') or \
+               self._get_tag_attribute_value_or_text(['abbr'], 'title') or \
+               self.tag.text    # todo: check if tag.text is equal to innerText
+
+    def _get_tag_attribute_value(self, tags: List[str], attr: str) -> Optional[str]:
+        if self.tag.name in tags and self.tag.has_attr(attr):
+            return self.tag[attr]
+        return None
+
+    def _get_tag_attribute_value_or_text(self, tags: List[str], attr: str) -> Optional[str]:
+        return self._get_attribute_or_text(attr) if self.tag.name in tags else None
+
+    def _get_attribute_or_text(self, attribute: str) -> str:
+        return self.tag[attribute] if self.tag.has_attr(attribute) else self.tag.text
 
     def _parse_value_title_class(self) -> str:
         child = self._get_only_child()
@@ -168,17 +175,14 @@ class HtmlTag:
             else:
                 value = ''  # todo get value
             data['value'] = value
-        elif self.tag.name == 'abbr' and self.tag.has_attr('title'):
-            data = self.tag['title']
-        elif self.tag.name in ('data', 'input') and self.tag.has_attr('value'):
-            data = self.tag['value']
-        elif self.tag.name in ('img', 'area') and self.tag.has_attr('alt'):
-            data = self.tag['alt']
         else:
             # todo: replace any nested <img> elements with their alt attribute, if present;
             # otherwise their src attribute, if present, adding a space at the beginning and end,
             # resolving any relative URLs, and removing all leading/trailing whitespace.
-            data = self._get_text_content()
+            data = self._get_tag_attribute_value(['abbr'], 'title') or \
+                   self._get_tag_attribute_value(['data', 'input'], 'value') or \
+                   self._get_tag_attribute_value(['img', 'area'], 'alt') or \
+                   self._get_text_content()
         if data:
             for name in class_names:
                 if properties.get(name) is not None:
@@ -188,15 +192,10 @@ class HtmlTag:
 
     def _parse_u_property(self, properties: dict, base_url: Optional[str]):
         class_names = [c[2:] for c in self.tag['class'] if c.startswith('u-')]
-        data = None
-        if self.tag.name in ('a', 'area') and self.tag.has_attr('href'):
-            data = self.tag['href']
-        elif self.tag.name in ('img', 'audio', 'video', 'source') and self.tag.has_attr('src'):
-            data = self.tag['src']
-        elif self.tag.name == 'video' and self.tag.has_attr('poster'):
-            data = self.tag['poster']
-        elif self.tag.name == 'object' and self.tag.has_attr('data'):
-            data = self.tag['data']
+        data = self._get_tag_attribute_value(['a', 'area'], 'href') or \
+               self._get_tag_attribute_value(['img', 'audio', 'video', 'source'], 'src') or \
+               self._get_tag_attribute_value(['video'], 'poster') or \
+               self._get_tag_attribute_value(['object'], 'data')
         if data:
             data = self._resolve_relative_url(data, base_url)
         elif self._is_value_class():
@@ -211,12 +210,10 @@ class HtmlTag:
             else:
                 value = ''  # todo get value
             data['value'] = value
-        elif self.tag.name == 'abbr' and self.tag.has_attr('title'):
-            data = self.tag['title']
-        elif self.tag.name in ('data', 'input') and self.tag.has_attr('value'):
-            data = self.tag['value']
         else:
-            data = self._get_text_content()
+            data = self._get_tag_attribute_value(['abbr'], 'title') or \
+                   self._get_tag_attribute_value(['data', 'input'], 'value') or \
+                   self._get_text_content()
 
         if data:
             for name in class_names:
@@ -231,14 +228,11 @@ class HtmlTag:
             data = self._parse_value_class()
         elif self._is_value_title_class():
             data = self._parse_value_title_class()
-        elif self.tag.name in ('time', 'ins', 'del') and self.tag.has_attr('datetime'):
-            data = self.tag['datetime']
-        elif self.tag.name == 'abbr' and self.tag.has_attr('title'):
-            data = self.tag['title']
-        elif self.tag.name in ('data', 'input') and self.tag.has_attr('value'):
-            data = self.tag['value']
         else:
-            data = self._get_text_content()
+            data = self._get_tag_attribute_value(['time', 'ins', 'del'], 'datetime') or \
+                   self._get_tag_attribute_value(['abbr'], 'title') or \
+                   self._get_tag_attribute_value(['data', 'input'], 'value') or \
+                   self._get_text_content()
 
         if data:
             for name in class_names:
@@ -260,26 +254,22 @@ class HtmlTag:
                 properties[name] = [data]
 
     def _get_implied_photo(self) -> Optional[str]:
-        if self.tag.name == 'img' and self.tag.has_attr('src'):
-            return self.tag['src']
-        if self.tag.name == 'object' and self.tag.has_attr('data'):
-            return self.tag['data']
-
         def _get_photo_from_only_child(tag: HtmlTag) -> Optional[str]:
             return tag._get_only_child_of_type('img', 'src') or \
                    tag._get_only_child_of_type('object', 'data')
 
-        return self._get_implied_property_from_only_child(_get_photo_from_only_child)
+        return self._get_tag_attribute_value(['img'], 'src') or \
+               self._get_tag_attribute_value(['object'], 'data') or \
+               self._get_implied_property_from_only_child(_get_photo_from_only_child)
 
     def _get_implied_url(self) -> Optional[str]:
-        if self.tag.name in ('a', 'area') and self.tag.has_attr('href'):
-            return self.tag['href']
 
         def _get_url_from_only_child(tag: HtmlTag) -> Optional[str]:
             return tag._get_only_child_of_type('a', 'href') or \
                    tag._get_only_child_of_type('area', 'href')
 
-        return self._get_implied_property_from_only_child(_get_url_from_only_child)
+        return self._get_tag_attribute_value(['a', 'area'], 'href') or \
+               self._get_implied_property_from_only_child(_get_url_from_only_child)
 
     @staticmethod
     def _resolve_relative_url(url: str, base_url: Optional[str]):
@@ -288,15 +278,8 @@ class HtmlTag:
         return urljoin(base_url, url)
 
     def _parse_date_time_value_tag(self) -> str:
-        if self.tag.name in ('img', 'area') and self.tag.has_attr('alt'):
-            return self.tag['alt']
-        if self.tag.name == 'data':
-            return self._get_attribute_or_text('value')
-        if self.tag.name == 'abbr':
-            return self._get_attribute_or_text('title')
-        if self.tag.name in ('del', 'ins', 'time'):
-            return self._get_attribute_or_text('datetime')
-        return self.tag.text
-
-    def _get_attribute_or_text(self, attribute: str) -> str:
-        return self.tag[attribute] if self.tag.has_attr(attribute) else self.tag.text
+        return self._get_tag_attribute_value(['img', 'area'], 'alt') or \
+               self._get_tag_attribute_value(['data'], 'value') or \
+               self._get_tag_attribute_value(['abbr'], 'title') or \
+               self._get_tag_attribute_value(['del', 'ins', 'time'], 'datetime') or \
+               self.tag.text
